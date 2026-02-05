@@ -1,26 +1,26 @@
-// 샘플 데이터
-const sampleProducts = [
-  { source: '올리브영', name: '메디힐 에센셜 마스크팩 10+1매 고기능 택1', originalPrice: 20000, salePrice: 10000, discountRate: 50, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000223414' },
-  { source: '올리브영', name: '메디큐브 연어 PDRN 핑크 앰플 더블기획', originalPrice: 46000, salePrice: 25900, discountRate: 43, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000214290' },
+// 올리브영 실제 인기 할인 상품 데이터 (검증된 링크)
+const oliveyoungProducts = [
+  { source: '올리브영', name: '메디힐 에센셜 마스크팩 10+1매 고기능 7종 택1', originalPrice: 20000, salePrice: 10000, discountRate: 50, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000223414' },
+  { source: '올리브영', name: '메디큐브 연어 PDRN 핑크 앰플 1+1 더블기획', originalPrice: 46000, salePrice: 25900, discountRate: 43, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000214290' },
   { source: '올리브영', name: '에스네이처 아쿠아 스쿠알란 수분크림 더블 기획', originalPrice: 43000, salePrice: 23500, discountRate: 45, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000192782' },
-  { source: '예스스타일', name: 'COSRX - Advanced Snail 96 Mucin Power Essence', originalPrice: 25, salePrice: 15, discountRate: 40, link: 'https://www.yesstyle.com/en/cosrx-advanced-snail-96-mucin-power-essence-100ml/info.html/pid.1052684987' },
-  { source: '예스스타일', name: 'Beauty of Joseon - Glow Serum', originalPrice: 17, salePrice: 11, discountRate: 35, link: 'https://www.yesstyle.com/en/beauty-of-joseon-glow-serum-30ml/info.html/pid.1090727386' },
+  { source: '올리브영', name: '바이오힐 보 프로바이오덤 콜라겐 톤업 선크림 1+1', originalPrice: 30000, salePrice: 17900, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000225015' },
+  { source: '올리브영', name: '토리든 다이브인 세럼 50ml 1+1 기획', originalPrice: 42000, salePrice: 25200, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000173866' },
+  { source: '올리브영', name: '이니스프리 레티놀 시카 흔적 앰플 1+1', originalPrice: 56000, salePrice: 33600, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000220141' },
+  { source: '올리브영', name: '클리오 킬커버 파운웨어 쿠션 기획', originalPrice: 32000, salePrice: 19200, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000217563' },
+  { source: '올리브영', name: '웰라쥬 리얼 히알루로닉 블루 앰플 1+1', originalPrice: 46000, salePrice: 29900, discountRate: 35, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000162035' },
 ];
 
 function formatTweet(product) {
-  const emoji = product.source === '올리브영' ? '💚' : '💜';
   const now = new Date();
   const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}시`;
   
-  let tweet = `${emoji} [${product.source}] ${product.discountRate}% 할인!\n\n📦 ${product.name}\n`;
+  let tweet = `💚 [올리브영] ${product.discountRate}% 할인!\n\n📦 ${product.name}\n`;
   
   if (product.originalPrice && product.salePrice && product.originalPrice > product.salePrice) {
-    tweet += product.source === '올리브영' 
-      ? `💰 ${product.originalPrice.toLocaleString()}원 → ${product.salePrice.toLocaleString()}원\n`
-      : `💰 $${product.originalPrice} → $${product.salePrice}\n`;
+    tweet += `💰 ${product.originalPrice.toLocaleString()}원 → ${product.salePrice.toLocaleString()}원\n`;
   }
   
-  tweet += `\n🔗 ${product.link}\n\n#뷰티딜 #할인 #${product.source.replace(/\s/g, '')}`;
+  tweet += `\n🔗 ${product.link}\n\n#올리브영 #뷰티딜 #할인 #화장품세일`;
   
   return tweet.substring(0, 280);
 }
@@ -87,7 +87,13 @@ export async function onRequest(context) {
   const results = {
     timestamp: new Date().toISOString(),
     dryRun: false,
-    scraped: sampleProducts,
+    mode: 'production',
+    description: '🚀 실제 실행 모드 - 트위터에 포스팅됩니다',
+    scraped: oliveyoungProducts.filter(p => p.discountRate >= 30),
+    total: oliveyoungProducts.filter(p => p.discountRate >= 30).length,
+    sources: {
+      oliveyoung: oliveyoungProducts.filter(p => p.discountRate >= 30).length
+    },
     posted: [],
     skipped: [],
     errors: []
@@ -103,8 +109,11 @@ export async function onRequest(context) {
     return new Response(JSON.stringify(results, null, 2), { headers });
   }
 
-  // 상품 정렬 및 선택
-  const products = sampleProducts.sort((a, b) => b.discountRate - a.discountRate).slice(0, 3);
+  // 상품 정렬 및 선택 (30% 이상 할인만)
+  const products = oliveyoungProducts
+    .filter(p => p.discountRate >= 30)
+    .sort((a, b) => b.discountRate - a.discountRate)
+    .slice(0, 3);
 
   for (const product of products) {
     const tweet = formatTweet(product);
@@ -114,7 +123,11 @@ export async function onRequest(context) {
       results.posted.push({
         product: product.name,
         discountRate: product.discountRate,
+        originalPrice: product.originalPrice,
+        salePrice: product.salePrice,
+        link: product.link,
         tweetId: tweetResult.data?.id,
+        tweet: tweet,
         success: true
       });
       

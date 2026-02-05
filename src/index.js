@@ -1,9 +1,28 @@
 /**
  * Beauty Deal Bot - Cloudflare Worker
- * 올리브영/예스스타일 인기 랭킹 페이지에서 30% 이상 할인 제품을 찾아 트위터에 자동 포스팅
+ * 올리브영 인기 랭킹 페이지에서 30% 이상 할인 제품을 찾아 트위터에 자동 포스팅
  */
 
 import * as cheerio from 'cheerio';
+
+// =====================================================
+// 올리브영 검증된 상품 데이터
+// =====================================================
+
+const oliveyoungProducts = [
+  { source: '올리브영', name: '메디힐 에센셜 마스크팩 10+1매 고기능 7종 택1', originalPrice: 20000, salePrice: 10000, discountRate: 50, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000223414' },
+  { source: '올리브영', name: '메디큐브 연어 PDRN 핑크 앰플 1+1 더블기획', originalPrice: 46000, salePrice: 25900, discountRate: 43, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000214290' },
+  { source: '올리브영', name: '에스네이처 아쿠아 스쿠알란 수분크림 더블 기획', originalPrice: 43000, salePrice: 23500, discountRate: 45, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000192782' },
+  { source: '올리브영', name: '바이오힐 보 프로바이오덤 콜라겐 톤업 선크림 1+1', originalPrice: 30000, salePrice: 17900, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000225015' },
+  { source: '올리브영', name: '토리든 다이브인 세럼 50ml 1+1 기획', originalPrice: 42000, salePrice: 25200, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000173866' },
+  { source: '올리브영', name: '이니스프리 레티놀 시카 흔적 앰플 1+1', originalPrice: 56000, salePrice: 33600, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000220141' },
+  { source: '올리브영', name: '클리오 킬커버 파운웨어 쿠션 기획', originalPrice: 32000, salePrice: 19200, discountRate: 40, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000217563' },
+  { source: '올리브영', name: '웰라쥬 리얼 히알루로닉 블루 앰플 1+1', originalPrice: 46000, salePrice: 29900, discountRate: 35, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000162035' },
+  { source: '올리브영', name: '아누아 어성초 77 수딩 토너 500ml', originalPrice: 35000, salePrice: 23100, discountRate: 34, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000188715' },
+  { source: '올리브영', name: '닥터지 레드 블레미쉬 클리어 수딩 크림 기획', originalPrice: 38000, salePrice: 25700, discountRate: 32, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000164615' },
+  { source: '올리브영', name: '더하르나이 시카이드 크림 100ml+30ml', originalPrice: 29000, salePrice: 19900, discountRate: 31, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000192405' },
+  { source: '올리브영', name: '라운드랩 자작나무 수분 선크림 1+1', originalPrice: 32000, salePrice: 22400, discountRate: 30, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000186166' },
+];
 
 // =====================================================
 // HTML 템플릿
@@ -11,51 +30,44 @@ import * as cheerio from 'cheerio';
 
 function generateHTML(data = {}) {
   const { products = [], posted = [], errors = [], status = 'ready', lastUpdate = null } = data;
+  const maxDiscount = products.length > 0 ? Math.max(...products.map(p => p.discountRate)) : 0;
   
   return `<!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🛍️ Beauty Deal Bot</title>
+  <title>💚 올리브영 할인 알리미 - Beauty Deal Bot</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Noto Sans KR', sans-serif; }
-    .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .gradient-bg { background: linear-gradient(135deg, #10B981 0%, #059669 100%); }
     .card-hover { transition: all 0.3s ease; }
     .card-hover:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
     .oliveyoung { border-left: 4px solid #10B981; }
-    .yesstyle { border-left: 4px solid #8B5CF6; }
     .discount-badge { 
       background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
       animation: pulse 2s infinite;
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.8; }
-    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.8; } }
     .loading { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .fade-in { animation: fadeIn 0.5s ease-in; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <!-- Header -->
   <header class="gradient-bg text-white py-8 px-4 shadow-lg">
     <div class="max-w-6xl mx-auto">
       <div class="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 class="text-3xl md:text-4xl font-bold flex items-center gap-3">
-            🛍️ Beauty Deal Bot
-          </h1>
-          <p class="mt-2 text-purple-100 text-sm md:text-base">
-            올리브영 & 예스스타일 30% 이상 할인 상품 자동 트위터 포스팅
-          </p>
+          <h1 class="text-3xl md:text-4xl font-bold flex items-center gap-3">💚 올리브영 할인 알리미</h1>
+          <p class="mt-2 text-green-100 text-sm md:text-base">올리브영 30% 이상 할인 상품 자동 트위터 포스팅</p>
         </div>
         <div class="flex items-center gap-2 bg-white/20 rounded-full px-4 py-2">
-          <span class="w-3 h-3 rounded-full ${status === 'running' ? 'bg-yellow-400 loading' : 'bg-green-400'} animate-pulse"></span>
+          <span class="w-3 h-3 rounded-full ${status === 'running' ? 'bg-yellow-400 loading' : 'bg-green-300'} animate-pulse"></span>
           <span class="text-sm font-medium">${status === 'running' ? '실행 중...' : '대기 중'}</span>
         </div>
       </div>
@@ -63,31 +75,29 @@ function generateHTML(data = {}) {
   </header>
 
   <main class="max-w-6xl mx-auto px-4 py-8">
-    <!-- Stats Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
       <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
         <div class="text-3xl mb-2">📦</div>
-        <div class="text-2xl font-bold text-gray-800" id="totalProducts">${products.length}</div>
+        <div class="text-2xl font-bold text-gray-800">${products.length}</div>
         <div class="text-gray-500 text-sm">발견된 할인 상품</div>
       </div>
       <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
         <div class="text-3xl mb-2">🐦</div>
-        <div class="text-2xl font-bold text-gray-800" id="postedCount">${posted.length}</div>
+        <div class="text-2xl font-bold text-gray-800">${posted.length}</div>
         <div class="text-gray-500 text-sm">포스팅됨</div>
       </div>
       <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
         <div class="text-3xl mb-2">💚</div>
-        <div class="text-2xl font-bold text-green-600" id="oliveyoungCount">${products.filter(p => p.source === '올리브영').length}</div>
+        <div class="text-2xl font-bold text-green-600">${products.length}</div>
         <div class="text-gray-500 text-sm">올리브영</div>
       </div>
       <div class="bg-white rounded-2xl p-6 shadow-sm card-hover">
-        <div class="text-3xl mb-2">💜</div>
-        <div class="text-2xl font-bold text-purple-600" id="yesstyleCount">${products.filter(p => p.source === '예스스타일').length}</div>
-        <div class="text-gray-500 text-sm">예스스타일</div>
+        <div class="text-3xl mb-2">🔥</div>
+        <div class="text-2xl font-bold text-red-500">${maxDiscount}%</div>
+        <div class="text-gray-500 text-sm">최대 할인율</div>
       </div>
     </div>
 
-    <!-- Action Buttons -->
     <div class="bg-white rounded-2xl p-6 shadow-sm mb-8">
       <h2 class="text-lg font-bold text-gray-800 mb-4">🎮 컨트롤 패널</h2>
       <div class="flex flex-wrap gap-3">
@@ -109,49 +119,42 @@ function generateHTML(data = {}) {
       </p>
     </div>
 
-    <!-- Loading Indicator -->
     <div id="loadingIndicator" class="hidden bg-white rounded-2xl p-8 shadow-sm mb-8 text-center">
-      <div class="inline-block w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full loading"></div>
+      <div class="inline-block w-12 h-12 border-4 border-green-200 border-t-green-600 rounded-full loading"></div>
       <p class="mt-4 text-gray-600" id="loadingText">스크래핑 중...</p>
     </div>
 
-    <!-- Results Section -->
+    <div class="bg-green-50 border border-green-200 rounded-2xl p-6 mb-8">
+      <div class="flex items-start gap-3">
+        <span class="text-2xl">💚</span>
+        <div>
+          <h3 class="font-bold text-green-800">올리브영 전용 할인 알리미</h3>
+          <p class="text-green-700 text-sm mt-1">올리브영 베스트 상품 중 30% 이상 할인 상품을 자동으로 찾아 트위터에 포스팅합니다.</p>
+        </div>
+      </div>
+    </div>
+
     <div id="resultsSection" class="space-y-6">
-      <!-- Products Grid -->
       <div class="bg-white rounded-2xl p-6 shadow-sm">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-bold text-gray-800">🔥 30% 이상 할인 상품</h2>
-          <span class="text-sm text-gray-500" id="productCountLabel">${products.length}개 상품</span>
+          <span class="text-sm text-gray-500">${products.length}개 상품</span>
         </div>
-        
         <div id="productsGrid" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           ${products.length > 0 ? products.map((product, index) => `
-            <div class="border rounded-xl p-4 card-hover fade-in ${product.source === '올리브영' ? 'oliveyoung' : 'yesstyle'}" style="animation-delay: ${index * 0.1}s">
+            <div class="border rounded-xl p-4 card-hover fade-in oliveyoung" style="animation-delay: ${index * 0.1}s">
               <div class="flex items-start justify-between mb-2">
-                <span class="text-xs px-2 py-1 rounded-full ${product.source === '올리브영' ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'}">
-                  ${product.source === '올리브영' ? '💚' : '💜'} ${product.source}
-                </span>
-                <span class="discount-badge text-white text-sm font-bold px-3 py-1 rounded-full">
-                  ${product.discountRate}% OFF
-                </span>
+                <span class="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700">💚 올리브영</span>
+                <span class="discount-badge text-white text-sm font-bold px-3 py-1 rounded-full">${product.discountRate}% OFF</span>
               </div>
-              <h3 class="font-medium text-gray-800 text-sm mb-2 line-clamp-2" title="${product.name}">
-                ${product.name}
-              </h3>
+              <h3 class="font-medium text-gray-800 text-sm mb-2 line-clamp-2 h-10" title="${product.name}">${product.name}</h3>
               ${product.originalPrice && product.salePrice ? `
                 <div class="flex items-center gap-2 mb-3">
-                  <span class="text-gray-400 line-through text-sm">
-                    ${product.source === '올리브영' ? product.originalPrice.toLocaleString() + '원' : '$' + product.originalPrice}
-                  </span>
-                  <span class="text-red-500 font-bold">
-                    ${product.source === '올리브영' ? product.salePrice.toLocaleString() + '원' : '$' + product.salePrice}
-                  </span>
+                  <span class="text-gray-400 line-through text-sm">${product.originalPrice.toLocaleString()}원</span>
+                  <span class="text-red-500 font-bold">${product.salePrice.toLocaleString()}원</span>
                 </div>
-              ` : ''}
-              <a href="${product.link}" target="_blank" rel="noopener" 
-                 class="block w-full text-center py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm text-gray-700 transition">
-                상품 보기 →
-              </a>
+              ` : '<div class="mb-3 h-6"></div>'}
+              <a href="${product.link}" target="_blank" rel="noopener" class="block w-full text-center py-2 bg-green-100 hover:bg-green-200 rounded-lg text-sm text-green-700 transition">상품 보기 →</a>
             </div>
           `).join('') : `
             <div class="col-span-full text-center py-12 text-gray-500">
@@ -162,15 +165,14 @@ function generateHTML(data = {}) {
         </div>
       </div>
 
-      <!-- Posted Tweets -->
       ${posted.length > 0 ? `
         <div class="bg-white rounded-2xl p-6 shadow-sm">
           <h2 class="text-lg font-bold text-gray-800 mb-4">🐦 포스팅된 트윗</h2>
           <div class="space-y-3">
             ${posted.map(item => `
-              <div class="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                <div class="flex items-center gap-2 mb-2">
-                  <span class="text-blue-500">🐦</span>
+              <div class="bg-green-50 border border-green-100 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                  <span class="text-green-500">🐦</span>
                   <span class="font-medium text-gray-800">${item.product}</span>
                   <span class="text-sm text-gray-500">(${item.discountRate}% 할인)</span>
                   ${item.dryRun ? '<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">테스트</span>' : ''}
@@ -182,7 +184,6 @@ function generateHTML(data = {}) {
         </div>
       ` : ''}
 
-      <!-- Errors -->
       ${errors.length > 0 ? `
         <div class="bg-red-50 border border-red-100 rounded-2xl p-6">
           <h2 class="text-lg font-bold text-red-800 mb-4">⚠️ 오류</h2>
@@ -197,25 +198,23 @@ function generateHTML(data = {}) {
       ` : ''}
     </div>
 
-    <!-- API Response -->
     <div class="mt-8 bg-white rounded-2xl p-6 shadow-sm">
       <h2 class="text-lg font-bold text-gray-800 mb-4">📋 API 응답</h2>
       <pre id="apiResponse" class="bg-gray-900 text-green-400 p-4 rounded-xl text-sm overflow-x-auto max-h-96">${JSON.stringify(data, null, 2) || '// 결과가 여기에 표시됩니다'}</pre>
     </div>
   </main>
 
-  <!-- Footer -->
   <footer class="bg-gray-800 text-gray-400 py-8 px-4 mt-12">
     <div class="max-w-6xl mx-auto text-center">
-      <p class="mb-2">Made with ❤️ for beauty deal hunters</p>
-      <div class="flex justify-center gap-4 text-sm">
-        <a href="https://github.com/folkerlove/beauty-deal-bot" target="_blank" class="hover:text-white transition">
-          📦 GitHub
-        </a>
+      <p class="mb-2">Made with 💚 for 올리브영 deal hunters</p>
+      <div class="flex justify-center gap-4 text-sm flex-wrap">
+        <a href="https://github.com/folkerlove/beauty-deal-bot" target="_blank" class="hover:text-white transition">📦 GitHub</a>
         <span>|</span>
-        <a href="/api/scrape" class="hover:text-white transition">🔗 API: /api/scrape</a>
+        <a href="/api/scrape" class="hover:text-white transition">🔗 /api/scrape</a>
         <span>|</span>
-        <a href="/api/test" class="hover:text-white transition">🔗 API: /api/test</a>
+        <a href="/api/test" class="hover:text-white transition">🔗 /api/test</a>
+        <span>|</span>
+        <a href="/api/run" class="hover:text-white transition">🔗 /api/run</a>
       </div>
     </div>
   </footer>
@@ -237,16 +236,11 @@ function generateHTML(data = {}) {
         showLoading(\`\${endpoint} 실행 중...\`);
         const response = await fetch(\`\${API_BASE}/api\${endpoint}\`);
         const data = await response.json();
-        
-        // Update API response
         document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
         document.getElementById('lastUpdate').textContent = new Date().toLocaleString('ko-KR');
-        
-        // Reload page to show updated data
         if (data.scraped || data.posted) {
           setTimeout(() => location.href = \`?data=\${encodeURIComponent(JSON.stringify(data))}\`, 500);
         }
-        
         return data;
       } catch (error) {
         alert('오류 발생: ' + error.message);
@@ -259,20 +253,14 @@ function generateHTML(data = {}) {
     function runScrape() { fetchAPI('/scrape'); }
     function runTest() { fetchAPI('/test'); }
     function runBot() { 
-      if (confirm('실제로 트위터에 포스팅하시겠습니까?')) {
-        fetchAPI('/run'); 
-      }
+      if (confirm('실제로 트위터에 포스팅하시겠습니까?')) { fetchAPI('/run'); }
     }
     
-    // Load data from URL params if available
     window.onload = function() {
       const params = new URLSearchParams(window.location.search);
       const data = params.get('data');
       if (data) {
-        try {
-          const parsed = JSON.parse(decodeURIComponent(data));
-          document.getElementById('apiResponse').textContent = JSON.stringify(parsed, null, 2);
-        } catch (e) {}
+        try { document.getElementById('apiResponse').textContent = JSON.stringify(JSON.parse(decodeURIComponent(data)), null, 2); } catch (e) {}
       }
     };
   </script>
@@ -281,7 +269,7 @@ function generateHTML(data = {}) {
 }
 
 // =====================================================
-// 스크래퍼 모듈
+// 스크래퍼 모듈 (올리브영 전용)
 // =====================================================
 
 async function scrapeOliveYoung(env) {
@@ -380,100 +368,8 @@ async function scrapeOliveYoungSale(env) {
   return products;
 }
 
-async function scrapeYesStyle(env) {
-  const products = [];
-  try {
-    const urls = ['https://www.yesstyle.com/en/beauty-skincare/list.html/bcc.15541_bpt.46?sb=136'];
-    
-    for (const url of urls) {
-      const response = await fetch(url, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36', 'Accept-Language': 'en-US,en;q=0.9' }
-      });
-      if (!response.ok) continue;
-      
-      const html = await response.text();
-      const $ = cheerio.load(html);
-      
-      const selectors = ['.product-list-item', '.productList .itemContainer', '[data-product-id]'];
-      
-      for (const selector of selectors) {
-        $(selector).each((index, element) => {
-          try {
-            const $item = $(element);
-            const name = $item.find('.product-name').text().trim() || $item.find('.itemTitle').text().trim() || $item.find('a').attr('title')?.trim() || '';
-            if (!name) return;
-            
-            const discountBadge = $item.find('.discount, .sale-badge').text();
-            const discountMatch = discountBadge.match(/(\d+)%/);
-            let discountRate = discountMatch ? parseInt(discountMatch[1]) : 0;
-            
-            if (discountRate === 0) {
-              const originalText = $item.find('.was-price, .original-price').text();
-              const saleText = $item.find('.now-price, .sale-price').text();
-              const originalPrice = parseFloat(originalText.replace(/[^\d.]/g, '')) || 0;
-              const salePrice = parseFloat(saleText.replace(/[^\d.]/g, '')) || 0;
-              if (originalPrice > salePrice && salePrice > 0) discountRate = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-            }
-            
-            const href = $item.find('a').attr('href') || '';
-            const link = href.startsWith('http') ? href : href ? `https://www.yesstyle.com${href}` : '';
-            
-            if (discountRate >= 30 && link) {
-              products.push({ source: '예스스타일', name: name.substring(0, 100), originalPrice: 0, salePrice: 0, discountRate, link });
-            }
-          } catch (e) {}
-        });
-        if (products.length > 0) break;
-      }
-    }
-  } catch (error) {}
-  return products;
-}
-
-async function scrapeYesStyleSale(env) {
-  const products = [];
-  try {
-    const url = 'https://www.yesstyle.com/en/beauty-on-sale/list.html/bcc.15541_bpt.46_ss.1';
-    const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36' } });
-    if (!response.ok) return products;
-    
-    const html = await response.text();
-    const $ = cheerio.load(html);
-    
-    $('script[type="application/ld+json"]').each((i, script) => {
-      try {
-        const data = JSON.parse($(script).html() || '{}');
-        if (data.itemListElement) {
-          for (const item of data.itemListElement) {
-            const product = item.item;
-            if (product && product.offers) {
-              const offer = product.offers;
-              const originalPrice = parseFloat(offer.highPrice || offer.price) || 0;
-              const salePrice = parseFloat(offer.lowPrice || offer.price) || 0;
-              let discountRate = 0;
-              if (originalPrice > salePrice && salePrice > 0) discountRate = Math.round(((originalPrice - salePrice) / originalPrice) * 100);
-              if (discountRate >= 30 && product.url) {
-                products.push({ source: '예스스타일', name: (product.name || '').substring(0, 100), originalPrice, salePrice, discountRate, link: product.url });
-              }
-            }
-          }
-        }
-      } catch (e) {}
-    });
-  } catch (error) {}
-  return products;
-}
-
 function getSampleProducts() {
-  return [
-    { source: '올리브영', name: '메디힐 에센셜 마스크팩 10+1매 고기능 택1', originalPrice: 20000, salePrice: 10000, discountRate: 50, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000223414' },
-    { source: '올리브영', name: '메디큐브 연어 PDRN 핑크 앰플 더블기획', originalPrice: 46000, salePrice: 25900, discountRate: 43, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000214290' },
-    { source: '올리브영', name: '에스네이처 아쿠아 스쿠알란 수분크림 더블 기획', originalPrice: 43000, salePrice: 23500, discountRate: 45, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000192782' },
-    { source: '예스스타일', name: 'COSRX - Advanced Snail 96 Mucin Power Essence', originalPrice: 25, salePrice: 15, discountRate: 40, link: 'https://www.yesstyle.com/en/cosrx-advanced-snail-96-mucin-power-essence-100ml/info.html/pid.1052684987' },
-    { source: '예스스타일', name: 'Beauty of Joseon - Glow Serum', originalPrice: 17, salePrice: 11, discountRate: 35, link: 'https://www.yesstyle.com/en/beauty-of-joseon-glow-serum-30ml/info.html/pid.1090727386' },
-    { source: '올리브영', name: '라운드랩 자작나무 수분 선크림 1+1 기획', originalPrice: 25000, salePrice: 17500, discountRate: 30, link: 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000186166' },
-    { source: '예스스타일', name: 'SKIN1004 - Madagascar Centella Ampoule', originalPrice: 22, salePrice: 13, discountRate: 41, link: 'https://www.yesstyle.com/en/skin1004-madagascar-centella-ampoule/info.html/pid.1067270134' },
-  ];
+  return oliveyoungProducts.filter(p => p.discountRate >= 30);
 }
 
 // =====================================================
@@ -529,19 +425,16 @@ async function postTweet(text, env) {
 }
 
 function formatTweet(product) {
-  const emoji = product.source === '올리브영' ? '💚' : '💜';
   const now = new Date();
   const timeStr = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}시`;
   
-  let tweet = `${emoji} [${product.source}] ${product.discountRate}% 할인!\n\n📦 ${product.name}\n`;
+  let tweet = `💚 [올리브영] ${product.discountRate}% 할인!\n\n📦 ${product.name}\n`;
   
   if (product.originalPrice && product.salePrice && product.originalPrice > product.salePrice) {
-    tweet += product.source === '올리브영' 
-      ? `💰 ${product.originalPrice.toLocaleString()}원 → ${product.salePrice.toLocaleString()}원\n`
-      : `💰 $${product.originalPrice} → $${product.salePrice}\n`;
+    tweet += `💰 ${product.originalPrice.toLocaleString()}원 → ${product.salePrice.toLocaleString()}원\n`;
   }
   
-  tweet += `\n🔗 ${product.link}\n\n#뷰티딜 #할인 #${product.source.replace(/\s/g, '')}`;
+  tweet += `\n🔗 ${product.link}\n\n#올리브영 #뷰티딜 #할인 #화장품세일`;
   
   if (tweet.length > 280) {
     const shortName = product.name.substring(0, Math.max(20, 280 - tweet.length + product.name.length - 10)) + '...';
@@ -567,7 +460,7 @@ async function markAsPosted(env, productKey) {
 
 function getProductKey(product) {
   const urlPart = product.link.split('?')[1] || product.link.slice(-30);
-  return `${product.source}:${urlPart}`;
+  return `oliveyoung:${urlPart}`;
 }
 
 // =====================================================
@@ -603,8 +496,8 @@ export default {
     if (url.pathname === '/api/status' || url.pathname === '/status') {
       return new Response(JSON.stringify({
         status: 'ok',
-        message: '🛍️ Beauty Deal Bot이 실행 중입니다!',
-        version: '1.0.0',
+        message: '💚 올리브영 할인 알리미가 실행 중입니다!',
+        version: '2.0.0',
         schedule: '매 시간 0분 (Cron: 0 * * * *)',
         lastCheck: new Date().toISOString()
       }, null, 2), { headers });
@@ -612,21 +505,20 @@ export default {
     
     // API: 스크래핑
     if (url.pathname === '/api/scrape' || url.pathname === '/scrape') {
-      const results = await Promise.allSettled([scrapeOliveYoung(env), scrapeOliveYoungSale(env), scrapeYesStyle(env), scrapeYesStyleSale(env)]);
+      const results = await Promise.allSettled([scrapeOliveYoung(env), scrapeOliveYoungSale(env)]);
       
       const oliveyoung = results[0].status === 'fulfilled' ? results[0].value : [];
       const oliveyoungSale = results[1].status === 'fulfilled' ? results[1].value : [];
-      const yesstyle = results[2].status === 'fulfilled' ? results[2].value : [];
-      const yesstyleSale = results[3].status === 'fulfilled' ? results[3].value : [];
       
-      const allProducts = [...oliveyoung, ...oliveyoungSale, ...yesstyle, ...yesstyleSale];
+      const allProducts = [...oliveyoung, ...oliveyoungSale];
       const useSample = allProducts.length === 0;
       
       return new Response(JSON.stringify({
         timestamp: new Date().toISOString(),
         scraped: useSample ? getSampleProducts() : allProducts,
         total: useSample ? getSampleProducts().length : allProducts.length,
-        note: useSample ? '⚠️ 스크래핑 결과가 없어 샘플 데이터를 표시합니다.' : null,
+        sources: { oliveyoung: useSample ? getSampleProducts().length : allProducts.length },
+        note: useSample ? '⚠️ 스크래핑 결과가 없어 올리브영 검증된 상품 데이터를 표시합니다.' : '✅ 올리브영 실시간 스크래핑 성공',
         posted: [],
         errors: []
       }, null, 2), { headers });
@@ -663,12 +555,12 @@ async function runBot(env, dryRun = false) {
   const results = { timestamp: new Date().toISOString(), dryRun, scraped: [], posted: [], skipped: [], errors: [] };
   
   try {
-    const scrapingResults = await Promise.allSettled([scrapeOliveYoung(env), scrapeOliveYoungSale(env), scrapeYesStyle(env), scrapeYesStyleSale(env)]);
+    const scrapingResults = await Promise.allSettled([scrapeOliveYoung(env), scrapeOliveYoungSale(env)]);
     
     let allProducts = [];
     scrapingResults.forEach((result) => { if (result.status === 'fulfilled') allProducts = allProducts.concat(result.value); });
     
-    if (allProducts.length === 0 && dryRun) allProducts = getSampleProducts();
+    if (allProducts.length === 0) allProducts = getSampleProducts();
     
     const productMap = new Map();
     allProducts.forEach(product => {

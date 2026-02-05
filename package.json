@@ -1,0 +1,29 @@
+{
+  "name": "beauty-deal-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "test:scheduled": "curl http://localhost:8787/__scheduled",
+    "test:scrape": "curl http://localhost:8787/scrape",
+    "kv:create": "wrangler kv:namespace create POSTED_PRODUCTS",
+    "kv:create:preview": "wrangler kv:namespace create POSTED_PRODUCTS --preview",
+    "secret:twitter-key": "wrangler secret put TWITTER_API_KEY",
+    "secret:twitter-secret": "wrangler secret put TWITTER_API_SECRET",
+    "secret:twitter-token": "wrangler secret put TWITTER_ACCESS_TOKEN",
+    "secret:twitter-token-secret": "wrangler secret put TWITTER_ACCESS_TOKEN_SECRET"
+  },
+  "keywords": ["cloudflare-workers", "twitter-bot", "web-scraping", "beauty", "deals"],
+  "author": "",
+  "license": "ISC",
+  "description": "올리브영/예스스타일 30% 이상 할인 상품을 트위터에 자동 포스팅하는 봇",
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "twitter-api-v2": "^1.29.0",
+    "wrangler": "^4.62.0"
+  }
+}

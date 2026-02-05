@@ -1,0 +1,60 @@
+# Beauty Deal Bot - Cloudflare Worker Configuration
+# 올리브영/예스스타일 30% 이상 할인 상품 트위터 자동 포스팅 봇
+
+name = "beauty-deal-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Cron Trigger - 매 시간 0분에 실행 (1시간마다)
+[triggers]
+crons = ["0 * * * *"]
+
+# KV Namespace for storing posted products (중복 포스팅 방지)
+# Cloudflare Dashboard에서 생성 후 id 입력 필요
+[[kv_namespaces]]
+binding = "POSTED_PRODUCTS"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# Environment Variables (민감 정보는 wrangler secret으로 설정)
+# 아래 변수들은 Cloudflare Dashboard에서 설정하거나 wrangler secret 명령어 사용
+[vars]
+BOT_NAME = "BeautyDealBot"
+MAX_TWEETS_PER_RUN = "5"
+
+# Production environment
+[env.production]
+name = "beauty-deal-bot"
+
+[env.production.triggers]
+crons = ["0 * * * *"]
+
+# Development environment (테스트용 - 5분마다)
+[env.dev]
+name = "beauty-deal-bot-dev"
+
+[env.dev.triggers]
+crons = ["*/5 * * * *"]
+
+# ===========================================
+# 배포 전 필수 설정 사항:
+# ===========================================
+# 
+# 1. KV Namespace 생성:
+#    wrangler kv:namespace create "POSTED_PRODUCTS"
+#    wrangler kv:namespace create "POSTED_PRODUCTS" --preview
+#    (생성된 id를 위의 kv_namespaces에 입력)
+#
+# 2. Twitter API 키 설정 (시크릿으로 저장):
+#    wrangler secret put TWITTER_API_KEY
+#    wrangler secret put TWITTER_API_SECRET
+#    wrangler secret put TWITTER_ACCESS_TOKEN
+#    wrangler secret put TWITTER_ACCESS_TOKEN_SECRET
+#
+# 3. 배포:
+#    wrangler deploy
+#
+# 4. 로그 확인:
+#    wrangler tail
+# ===========================================
